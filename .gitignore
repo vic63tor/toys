@@ -1,5 +1,5 @@
 .env
 .*.swp
 __pycache__
-wechatbot/tmp/dump.txt
+wechatbot/tmp/*
 wechatbot/*.pkl
