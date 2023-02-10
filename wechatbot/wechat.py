@@ -1,9 +1,11 @@
-#!/usr/bin/env python3
-import pathlib
-import itchat
-from itchat.content import *
-import text_processing, image_processing, audio_processing
 import os
+import pathlib
+
+import itchat
+from itchat.content import TEXT, RECORDING, VIDEO, PICTURE
+import text_processing 
+import image_processing
+import audio_processing
 
 chat_cache = {}
 tmpDir = os.path.join(pathlib.Path(__file__).parent, 'tmp/')
@@ -70,8 +72,8 @@ def resp_handler(msg):
     print(f'msg.type is {msg.type}')
     print('-'*8, '\n')
 
-    wake_up_msg = 'Hello robot' or 'Robot' or '机器人'
-    stop_msg = 'Goodbye robot' or 'goodbye robot' or '886'
+    isWakeUp = 'Hello robot' or 'Robot' or '机器人'
+    isSleep = 'Goodbye robot' or 'goodbye robot' or '886'
     msg_options = f'🤖: Gib number and option pls: number option\n 1. Chatbot {text_processing.templates.keys()}\n 2. Picture editing '
 
     try:
@@ -87,7 +89,7 @@ def resp_handler(msg):
         recv_text = audio_processing.transcribe(path_to_recording).strip()
 
     if chat.state == 'sleep': 
-        if recv_text == wake_up_msg:
+        if recv_text == isWakeUp:
             itchat.send(msg_options, toUserName=chat.name)
             chat.state = 'awaiting instruction'
     elif chat.state == 'awaiting instruction':
