@@ -40,38 +40,35 @@ with open('prompts.json') as f:
 #    ocean = wlexpr('GeoNearest[Entity["Ocean"], Here]')
 #    return wa_session.evaluate(ocean)
 
-class gpt_robot:
-    llm = OpenAI(temperature=0.8)
+class gpt_robot(LLMChain):
     def __init__(self, templates):
+        self.name = None
+        template = self.tempaltes["chatgpt"] if self.name == None else self.tempaltes[self.name]
+        super.__init__(
+            llm=OpenAI(temperature=0.8),
+            prompt=PromptTemplate(input_variables=["chat_history","question"], template=self.templates[name]),
+            verbose=True,
+            memory=ConversationBufferMemory(memory_key="chat_history"),
+        )
+
         self.templates = templates
         self._cache = {}
 
-    def add_template(self, name, prompt):
-        self.templates[name] = prompt
+    @classmethod
+    def add_template(cls, name, prompt):
+        cls.templates[name] = prompt
     
+    @classmethod
     def del_template(self, name):
         del self.templates[name]
     
-    def save_to_prompts(self):
+    @staticmethod
+    def save_to_json(templates):
         with open('prompts.json', 'w') as f:
-            json.dump(self.templates, f)
+            json.dump(templates, f)
     
     def respond(self, inp, ToUserName, name=None):
-        template = self.tempaltes["chatgpt"] if name == None else self.tempaltes[name]
 
-        if ToUserName not in self.llm_cache.keys():
-            llm = OpenAI(temperature=0.8)
-            prompt_template = PromptTemplate(input_variables=["chat_history","question"], template=self.templates[name])
-            memory = ConversationBufferMemory(memory_key="chat_history")
-            llm_chain = LLMChain(
-                llm=llm,
-                prompt=prompt_template,
-                verbose=True,
-                memory=memory,
-            )
-            self.llm_cache[ToUserName] = llm_chain
-        else:
-            llm_chain = self.llm_cache[ToUserName]
 
         ret = llm_chain.predict(question=f"{inp}").strip()
         return ret
