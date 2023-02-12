@@ -41,9 +41,10 @@ with open('prompts.json') as f:
 #    return wa_session.evaluate(ocean)
 
 class gpt_robot(LLMChain):
-    def __init__(self, templates):
+    def __init__(self):
+        default = "chatgpt"
         self.name = None
-        template = self.tempaltes["chatgpt"] if self.name == None else self.tempaltes[self.name]
+        template = self.tempaltes[default] if self.name == None else self.tempaltes[self.name]
         super.__init__(
             llm=OpenAI(temperature=0.8),
             prompt=PromptTemplate(input_variables=["chat_history","question"], template=self.templates[name]),
@@ -51,9 +52,13 @@ class gpt_robot(LLMChain):
             memory=ConversationBufferMemory(memory_key="chat_history"),
         )
 
-        self.templates = templates
         self._cache = {}
 
+    @staticmethod
+    def _read_prompts(file_name):
+        with open('prompts.json', 'r') as f:
+            ret = json.loads(f)
+        return ret
     @classmethod
     def add_template(cls, name, prompt):
         cls.templates[name] = prompt
@@ -67,6 +72,7 @@ class gpt_robot(LLMChain):
         with open('prompts.json', 'w') as f:
             json.dump(templates, f)
     
+
     def respond(self, inp, ToUserName, name=None):
 
 

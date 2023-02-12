@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
 import os
 import pathlib
+from dataclasses import dataclass
 
 import itchat
 from itchat.content import TEXT, RECORDING, VIDEO, PICTURE
+
 import text_processing 
 import image_processing
 import audio_processing
@@ -10,8 +13,6 @@ import audio_processing
 chat_cache = {}
 tmpDir = os.path.join(pathlib.Path(__file__).parent, 'tmp/')
 picDir = os.path.join(tmpDir, 'qr.png')
-
-
 
 #class wechatHandler:
 #    def __init__(self):
@@ -28,6 +29,7 @@ def clean():
     #for file in files:
         #os.remove(file)
 
+
 def save(msg):
     if not os.path.exists(tmpDir):
         os.mkdir(tmpDir)
@@ -36,7 +38,6 @@ def save(msg):
     msg['Text'](path)
     print('file saved at ' + path)
     return path
-
 
 #@itchat.msg_register(RECORDING, isFriendChat=True, isGroupChat=False, isMpChat=False)
 #def voice_handler(msg):
@@ -54,16 +55,17 @@ def save(msg):
 #        ret_text = text_processing.gpt(recv_text, msg["ToUserName"])
 #        itchat.send('🤖: ' + f'{ret_text}', toUserName='filehelper')
 
-class chat_obj:
+@dataclass #implement dataclass
+class Chat_Session:
+
     def __init__(self, msg):
         self._from = msg["FromUserName"]
         self._to = msg["ToUserName"] 
         self.chat = msg.user['UserName']
-        self.state = 'sleep'
-        #self.chatgpt_state = 
+        self.universal_state = 'sleep'
+        self.text_processing_state = 
 
     #def append_history()
-
 
 @itchat.msg_register([TEXT, VIDEO, PICTURE, RECORDING], isFriendChat=True, isGroupChat=False, isMpChat=False)
 def resp_handler(msg):
@@ -79,7 +81,7 @@ def resp_handler(msg):
     try:
         chat = chat_cache[msg.user["UserName"]]
     except KeyError:
-        chat_cache[msg.user["UserName"]] = chat_obj(msg)
+        chat_cache[msg.user["UserName"]] = Chat_Session(msg)
         chat = chat_cache[msg.user["UserName"]]
 
     if msg.type == 'Text':
@@ -176,5 +178,3 @@ if __name__ == '__main__':
     self.loginInfo['synckey'] = '|'.join(['%s_%
     '''
     #itchat.run(debug=True, blockThread=True)
-
-
