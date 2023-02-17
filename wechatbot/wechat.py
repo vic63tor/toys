@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import os
 import pathlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional
+import datetime
 
 import itchat
 from itchat.content import TEXT, RECORDING, VIDEO, PICTURE
@@ -55,46 +57,86 @@ def save(msg):
 #        ret_text = text_processing.gpt(recv_text, msg["ToUserName"])
 #        itchat.send('🤖: ' + f'{ret_text}', toUserName='filehelper')
 
-@dataclass #implement dataclass
-class Chat_Session:
+#new_message = {'sender': msg["FromUserName"], 'receiver': msg["ToUserName"], 'msgType': msg.type, 'chatname': msg.user['UserName'], 'timestamp': msg['CreateTime']}
 
-    def __init__(self, msg):
-        self._from = msg["FromUserName"]
-        self._to = msg["ToUserName"] 
-        self.chat = msg.user['UserName']
-        self.universal_state = 'sleep'
-        self.text_processing_state = 
+@dataclass
+class Message:
+    msg: str
+    time: datetime.datetime
+    sender: str
+
+
+class ChatSession:
+    start_phrase = ['Hello robot', 'Robot', '机器人']
+    quit_phrase = ['Goodbye robo', 'goodbye robot', '886']
+    options = f'🤖: Gib number pls: number option\n 1. Chatbot {text_processing.templates.keys()}\n 2. Picture editing '
+
+    def __init__(self, sender: str, receiver: str, chatname: str): #instead of sender and receiver, determine who you are and define the other person as other.
+        self.sender = sender
+        self.receiver = receiver
+        self.chatname = chatname
+        self.current_state = "init"
+        self.chat_history: List[Message] = []
+        self.prev_msg: str
+        self.textbot_state: text_processing.ConversationBot
+    
+    def _update_chat_history(self, msg):
+        if msg.type == 'Text':
+            recv_text = msg['Text']
+        elif msg.type == 'Recording':
+            path_to_recording = save(msg)
+            recv_text = audio_processing.transcribe(path_to_recording).strip()
+
+        if recv_text:
+            self.chat_history.append(Message(msg=recv_text, time=msg.CreateTime, sender=self.sender))
+            self.prev_msg = recv_text
+        else:
+            self.chat_history.append(Message(msg=msg.type, time=msg.CreateTime, sender=self.sender))
+            self.prev_msg = None
+
+
+
+
+
 
     #def append_history()
 
 @itchat.msg_register([TEXT, VIDEO, PICTURE, RECORDING], isFriendChat=True, isGroupChat=False, isMpChat=False)
 def resp_handler(msg):
-    print('-'*8)
-    print(msg, '\n')
-    print(f'msg.type is {msg.type}')
-    print('-'*8, '\n')
-
-    isWakeUp = 'Hello robot' or 'Robot' or '机器人'
-    isSleep = 'Goodbye robot' or 'goodbye robot' or '886'
-    msg_options = f'🤖: Gib number and option pls: number option\n 1. Chatbot {text_processing.templates.keys()}\n 2. Picture editing '
+    '''
+    {'MsgId': '4408932538244882035', 'FromUserName': '@2ab1bc388bb8e329553e4e44e694a818aad8df0f3cb01b60fc2530d605fe2c31', 'ToUserName': 'filehelper', 'MsgType': 1, 'Content': 'djdjd', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1676613784, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 4408932538244882035, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'UserName': 'filehelper', 'MemberList': <ContactList: []>}>, 'Type': 'Text', 'Text': 'djdjd'} 
+    if new_message['msgType'] == 'Text':
+        recv_text = msg['Text']
+    elif new_message['msgType'] == 'Recording':
+        path_to_recording = save(msg)
+        recv_text = audio_processing.transcribe(path_to_recording).strip()
+'''
 
     try:
         chat = chat_cache[msg.user["UserName"]]
+        chat._update_chat_history(msg)
     except KeyError:
-        chat_cache[msg.user["UserName"]] = Chat_Session(msg)
+        chat_cache[msg.user["UserName"]] = ChatSession(msg["FromUserName"], msg["ToUserName"], msg.user['UserName'])
         chat = chat_cache[msg.user["UserName"]]
 
-    if msg.type == 'Text':
-        recv_text = msg['Text']
-    elif msg.type == 'Recording':
-        path_to_recording = save(msg)
-        recv_text = audio_processing.transcribe(path_to_recording).strip()
+    print('-'*8)
+    print(msg, '\n')
+    print(chat.current_state)
+    print(chat.prev_msg)
+    print('-'*8, '\n')
 
-    if chat.state == 'sleep': 
-        if recv_text == isWakeUp:
-            itchat.send(msg_options, toUserName=chat.name)
-            chat.state = 'awaiting instruction'
-    elif chat.state == 'awaiting instruction':
+
+
+    
+
+
+    if chat.prev_msg in chat.start_phrase and chat.current_state == 'init':
+
+
+        itchat.send('fuck', toUserName=chat.name)
+        chat.state = 'await_inst'
+    elif chat.state == 'await_inst':
+        recv_text
         print(recv_text.split())
 
 
@@ -165,8 +207,9 @@ def resp_handler(msg):
 
 if __name__ == '__main__':
     #save('hi')
-    itchat.login(picDir=picDir)
-    print(itchat.username)
+    uid = itchat.login(picDir=picDir)
+    print(uid)
+    itchat.run(debug=True, blockThread=True)
     itchat.s
     
     #itchat.dump_login_status(fileDir=tmpDir+'dump')
@@ -177,4 +220,3 @@ if __name__ == '__main__':
     self.loginInfo['SyncKey'] = dic['SyncKey']
     self.loginInfo['synckey'] = '|'.join(['%s_%
     '''
-    #itchat.run(debug=True, blockThread=True)
