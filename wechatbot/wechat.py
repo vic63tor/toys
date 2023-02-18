@@ -3,7 +3,7 @@ import os
 import pathlib
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
-import datetime
+from datetime import datetime
 
 import itchat
 from itchat.content import TEXT, RECORDING, VIDEO, PICTURE
@@ -11,10 +11,12 @@ from itchat.content import TEXT, RECORDING, VIDEO, PICTURE
 import text_processing 
 import image_processing
 import audio_processing
+import utils
 
 chat_cache = {}
-tmpDir = os.path.join(pathlib.Path(__file__).parent, 'tmp/')
-picDir = os.path.join(tmpDir, 'qr.png')
+tmp_dir = os.path.join(pathlib.Path(__file__).parent, 'tmp/')
+chat_history_dir = os.path.join(pathlib.Path(__file__).parent, 'chat_history/')
+pic_dir = os.path.join(tmp_dir, 'qr.png')
 
 #class wechatHandler:
 #    def __init__(self):
@@ -26,16 +28,16 @@ picDir = os.path.join(tmpDir, 'qr.png')
 #
 
 def clean():
-    for f in os.listdir(tmpDir):
-        os.remove(os.path.join(tmpDir, f))
+    for f in os.listdir(tmp_dir):
+        os.remove(os.path.join(tmp_dir, f))
     #for file in files:
         #os.remove(file)
 
 
 def save(msg):
-    if not os.path.exists(tmpDir):
-        os.mkdir(tmpDir)
-    path = os.path.join(tmpDir, f'{msg["FileName"]}')
+    if not os.path.exists(tmp_dir):
+        os.mkdir(tmp_dir)
+    path = os.path.join(tmp_dir, f'{msg["FileName"]}')
     #path = f'/tmp/{msg["FileName"]}'
     msg['Text'](path)
     print('file saved at ' + path)
@@ -62,37 +64,49 @@ def save(msg):
 @dataclass
 class Message:
     msg: str
-    time: datetime.datetime
+    time: str
     sender: str
 
 
 class ChatSession:
     start_phrase = ['Hello robot', 'Robot', '机器人']
     quit_phrase = ['Goodbye robo', 'goodbye robot', '886']
-    options = f'🤖: Gib number pls: number option\n 1. Chatbot {text_processing.templates.keys()}\n 2. Picture editing '
 
-    def __init__(self, sender: str, receiver: str, chatname: str): #instead of sender and receiver, determine who you are and define the other person as other.
-        self.sender = sender
-        self.receiver = receiver
-        self.chatname = chatname
+    def __init__(self, user: str, contact: str): 
+        self.user_info = {'ID': user} # , 'nickname': itchat.search_friends(userName=user)['NickName']
+        self.contact_info = {'ID': contact} # , 'nickname': itchat.search_friends(userName=contact)['NickName']
         self.current_state = "init"
-        self.chat_history: List[Message] = []
+        self.chat_history = []
         self.prev_msg: str
         self.textbot_state: text_processing.ConversationBot
+        self.modes = [*text_processing.templates.keys()] # and picture modes
     
     def _update_chat_history(self, msg):
+        recv_text = None
         if msg.type == 'Text':
             recv_text = msg['Text']
         elif msg.type == 'Recording':
             path_to_recording = save(msg)
             recv_text = audio_processing.transcribe(path_to_recording).strip()
+            print(f'audio transcribed text: {recv_text}')
+
+        sender = self.contact_info if msg['FromUserName'] == self.contact_info['ID'] else self.user_info
 
         if recv_text:
-            self.chat_history.append(Message(msg=recv_text, time=msg.CreateTime, sender=self.sender))
+            self.chat_history.append(Message(msg=recv_text, time=str(datetime.fromtimestamp(msg.CreateTime)), sender=sender))
             self.prev_msg = recv_text
         else:
-            self.chat_history.append(Message(msg=msg.type, time=msg.CreateTime, sender=self.sender))
+            self.chat_history.append(Message(msg=msg.type, time=str(datetime.fromtimestamp(msg.CreateTime)), sender=sender))
             self.prev_msg = None
+    
+    def format_modes_to_str(self):
+        return '. '.join([f'{n}. {mode}' for n, mode in enumerate(self.modes)])
+
+    def save_chat_history(self):
+        with open(chat_history_dir+f'{self.contact_info["nickname"]}'):
+            pass
+
+
 
 
 
@@ -103,41 +117,40 @@ class ChatSession:
 
 @itchat.msg_register([TEXT, VIDEO, PICTURE, RECORDING], isFriendChat=True, isGroupChat=False, isMpChat=False)
 def resp_handler(msg):
-    '''
-    {'MsgId': '4408932538244882035', 'FromUserName': '@2ab1bc388bb8e329553e4e44e694a818aad8df0f3cb01b60fc2530d605fe2c31', 'ToUserName': 'filehelper', 'MsgType': 1, 'Content': 'djdjd', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1676613784, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 4408932538244882035, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'UserName': 'filehelper', 'MemberList': <ContactList: []>}>, 'Type': 'Text', 'Text': 'djdjd'} 
-    if new_message['msgType'] == 'Text':
-        recv_text = msg['Text']
-    elif new_message['msgType'] == 'Recording':
-        path_to_recording = save(msg)
-        recv_text = audio_processing.transcribe(path_to_recording).strip()
-'''
+    #{'MsgId': '4408932538244882035', 'FromUserName': '@2ab1bc388bb8e329553e4e44e694a818aad8df0f3cb01b60fc2530d605fe2c31', 'ToUserName': 'filehelper', 'MsgType': 1, 'Content': 'djdjd', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1676613784, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 4408932538244882035, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'UserName': 'filehelper', 'MemberList': <ContactList: []>}>, 'Type': 'Text', 'Text': 'djdjd'} 
 
     try:
         chat = chat_cache[msg.user["UserName"]]
-        chat._update_chat_history(msg)
     except KeyError:
-        chat_cache[msg.user["UserName"]] = ChatSession(msg["FromUserName"], msg["ToUserName"], msg.user['UserName'])
+        user = utils.compare_similarity(msg["FromUserName"], msg["ToUserName"], uid)
+        contact = utils.compare_difference(msg["FromUserName"], msg["ToUserName"], uid)
+        chat_cache[msg.user["UserName"]] = ChatSession(user=user, contact=contact)
         chat = chat_cache[msg.user["UserName"]]
+
+    chat._update_chat_history(msg)
 
     print('-'*8)
     print(msg, '\n')
     print(chat.current_state)
     print(chat.prev_msg)
-    print('-'*8, '\n')
-
-
-
-    
+    print(chat.chat_history)
+    for mes in chat.chat_history:
+        print(str(mes))
 
 
     if chat.prev_msg in chat.start_phrase and chat.current_state == 'init':
-
-
-        itchat.send('fuck', toUserName=chat.name)
-        chat.state = 'await_inst'
-    elif chat.state == 'await_inst':
-        recv_text
-        print(recv_text.split())
+        itchat.send(f'{chat.format_modes_to_str()}', toUserName=chat.contact_info['ID'])
+        chat.current_state = 'await_inst'
+    elif chat.current_state == 'await_inst':
+        match chat.prev_msg:
+            case '1':
+                itchat.send(f'initialized {chat.modes[0]}', toUserName=chat.contact_info['ID'])
+            case _:
+                itchat.send('Not a number. Only give number. 🤖 want number', toUserName=chat.contact_info['ID'])
+    else:
+        print('what the fuck')
+                
+                
 
 
 
@@ -207,10 +220,8 @@ def resp_handler(msg):
 
 if __name__ == '__main__':
     #save('hi')
-    uid = itchat.login(picDir=picDir)
-    print(uid)
+    uid = itchat.login(picDir=pic_dir)
     itchat.run(debug=True, blockThread=True)
-    itchat.s
     
     #itchat.dump_login_status(fileDir=tmpDir+'dump')
     '''

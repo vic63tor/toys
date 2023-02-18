@@ -1,6 +1,19 @@
+import pathlib
+import os
+
 from PIL import Image, ImageSequence, ImageEnhance
 
-def toBlackAndWhite(file_path, path_to_edited_photo):
+
+class ImageProcessingBot:
+    filepath = os.path.join(pathlib.Path(__file__).parent, 'tmp/')
+    def __init__(self):
+        #picture editing options
+        ...
+        
+
+
+
+def to_BW(file_path, path_to_edited_photo):
     img = Image.open(file_path)
     try:
         if img.is_animated:
