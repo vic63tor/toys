@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os
 import pathlib
+import re
+import json
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -64,13 +66,13 @@ def save(msg):
 @dataclass
 class Message:
     msg: str
-    time: str
+    time: datetime
     sender: str
 
 
 class ChatSession:
-    start_phrase = ['Hello robot', 'Robot', '机器人']
-    quit_phrase = ['Goodbye robo', 'goodbye robot', '886']
+    start_phrase = ['Robot', '机器人']
+    end_phrase = ['886', 'Goodbye']
 
     def __init__(self, user: str, contact: str): 
         self.user_info = {'ID': user} # , 'nickname': itchat.search_friends(userName=user)['NickName']
@@ -78,7 +80,9 @@ class ChatSession:
         self.current_state = "init"
         self.chat_history = []
         self.prev_msg: str
-        self.textbot_state: text_processing.ConversationBot
+        self.textbot = None
+        self.imagebot = None
+        #self.pythonrepl = None need a python session here
         self.modes = [*text_processing.templates.keys()] # and picture modes
     
     def _update_chat_history(self, msg):
@@ -93,14 +97,25 @@ class ChatSession:
         sender = self.contact_info if msg['FromUserName'] == self.contact_info['ID'] else self.user_info
 
         if recv_text:
-            self.chat_history.append(Message(msg=recv_text, time=str(datetime.fromtimestamp(msg.CreateTime)), sender=sender))
+            self.chat_history.append(Message(msg=recv_text, time=datetime.fromtimestamp(msg.CreateTime), sender=sender))
             self.prev_msg = recv_text
         else:
-            self.chat_history.append(Message(msg=msg.type, time=str(datetime.fromtimestamp(msg.CreateTime)), sender=sender))
+            self.chat_history.append(Message(msg=msg.type, time=datetime.fromtimestamp(msg.CreateTime), sender=sender))
             self.prev_msg = None
+
+    def initialize_textbot(self, mode: str, temperature=0.8):
+        with open("prompts.json", "r") as f:
+            f = f.read()
+            templates = json.loads(f)
+        prompt = templates[mode]
+        self.textbot = text_processing.ConversationBot(prompt_=prompt, temperature=temperature)
+
+    def initialize_imagebot(self):
+        self.imagebot = image_processing.to_BW()
+
     
     def format_modes_to_str(self):
-        return '. '.join([f'{n}. {mode}' for n, mode in enumerate(self.modes)])
+        return '\n'.join([f'{n}. {mode}' for n, mode in enumerate(self.modes)])
 
     def save_chat_history(self):
         with open(chat_history_dir+f'{self.contact_info["nickname"]}'):
@@ -133,22 +148,54 @@ def resp_handler(msg):
     print(msg, '\n')
     print(chat.current_state)
     print(chat.prev_msg)
-    print(chat.chat_history)
     for mes in chat.chat_history:
         print(str(mes))
 
+    # should start with a match case to be able to use this as a python interpreter.
+    match re.split(r"\s+", chat.prev_msg):
+        case prev_msg if ' '.join(prev_msg) in chat.start_msg:
+            if chat.current_state == 'init':
+                itchat.send(f'start phrase: {chat.start_phrase} \nend phrase: {chat.end_phrase}', toUserName=chat.contact_info['ID'])
+                itchat.send(f'{chat.format_modes_to_str()}', toUserName=chat.contact_info['ID'])
+                chat.current_state = 'await_mode'
 
-    if chat.prev_msg in chat.start_phrase and chat.current_state == 'init':
-        itchat.send(f'{chat.format_modes_to_str()}', toUserName=chat.contact_info['ID'])
-        chat.current_state = 'await_inst'
-    elif chat.current_state == 'await_inst':
+        case ['python', *args]:
+            script = ' '.join(args)
+            if utils.is_python_statement(script):
+                itchat.send(f'{eval(script)}', toUserName=chat.contact_info['ID'])
+
+
+
+
+
+        case prev_msg if ' '.join(prev_msg) in chat.end_msg:
+
+    '''
+    if chat.current_state == 'init':
         match chat.prev_msg:
-            case '1':
-                itchat.send(f'initialized {chat.modes[0]}', toUserName=chat.contact_info['ID'])
+            case prev_msg if prev_msg in chat.start_phrase:
+                itchat.send(f'start phrase: {chat.start_phrase} \nend phrase: {chat.end_phrase}', toUserName=chat.contact_info['ID'])
+                itchat.send(f'{chat.format_modes_to_str()}', toUserName=chat.contact_info['ID'])
+                chat.current_state = 'await_mode'
+    elif chat.current_state == 'await_mode':
+        try:
+            choice = int(chat.prev_msg)
+            itchat.send(f'initialized {chat.modes[choice]}', toUserName=chat.contact_info['ID'])
+            chat.initialize_textbot(chat.modes[choice])
+            chat.current_state = 'textbot'
+        except:
+            itchat.send('Not a number. Only give number. 🤖 want number', toUserName=chat.contact_info['ID'])
+    elif chat.current_state == 'textbot':
+        match chat.prev_msg.split():
+            case prev_msg if ' '.join(prev_msg) in chat.end_phrase:
+                #end session?
+                chat.current_state == 'init'
+            case prev_msg if utils.is_python_statement(prev_msg):
+                eval(prev_msg)
             case _:
-                itchat.send('Not a number. Only give number. 🤖 want number', toUserName=chat.contact_info['ID'])
-    else:
-        print('what the fuck')
+                itchat.send(f'🤖: {chat.textbot.respond(chat.prev_msg)}', toUserName=chat.contact_info['ID'])
+
+    '''
                 
                 
 

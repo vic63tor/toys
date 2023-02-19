@@ -21,7 +21,7 @@ load_dotenv()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 WOLFRAMALPHA_API_KEY = os.environ.get("WOLFRAMALPHA_API_KEY")
 with open('prompts.json') as f:
-    templates = json.load(f)
+    templates = json.loads(f.read())
 
 
 
@@ -40,27 +40,28 @@ with open('prompts.json') as f:
 #    ocean = wlexpr('GeoNearest[Entity["Ocean"], Here]')
 #    return wa_session.evaluate(ocean)
 
-class gpt_robot(LLMChain):
-    def __init__(self):
-        default = "chatgpt"
-        self.name = None
-        template = self.tempaltes[default] if self.name == None else self.tempaltes[self.name]
-        super.__init__(
-            llm=OpenAI(temperature=0.8),
-            prompt=PromptTemplate(input_variables=["chat_history","question"], template=self.templates[name]),
+class ConversationBot(LLMChain):
+    def __init__(self, prompt_, temperature=0.8):
+        super().__init__(
+            llm=OpenAI(temperature=temperature),
+            prompt=PromptTemplate(input_variables=["chat_history","question"], template=prompt_),
             verbose=True,
             memory=ConversationBufferMemory(memory_key="chat_history"),
         )
+        #self.name = None
+        #template = self.tempaltes[self.default] if self.name == None else self.tempaltes[self.name]
 
-        self._cache = {}
+
+    
 
     @staticmethod
-    def _read_prompts(file_name):
-        with open('prompts.json', 'r') as f:
+    def _read_prompts():
+        with open('prompts.json') as f:
+            f = f.read()
             ret = json.loads(f)
         return ret
     @classmethod
-    def add_template(cls, name, prompt):
+    def init_new_template(cls, name, prompt):
         cls.templates[name] = prompt
     
     @classmethod
@@ -73,11 +74,8 @@ class gpt_robot(LLMChain):
             json.dump(templates, f)
     
 
-    def respond(self, inp, ToUserName, name=None):
-
-
-        ret = llm_chain.predict(question=f"{inp}").strip()
-        return ret
+    def respond(self, inp):
+        return self.predict(question=f"{inp}").strip()
     
     def _reset(self):
         with open('prompts.json') as f:
@@ -121,8 +119,9 @@ class gpt_robot(LLMChain):
 
 if __name__ == '__main__':
     with open('prompts.json') as f:
-        templates = json.load(f)
-    bot1 = gpt_robot(templates)
+        my_templates = json.loads(f.read())
+    my_templates = my_templates['chatgpt']
+    bot1 = ConversationBot(prompt_=my_templates)
 
 
 
