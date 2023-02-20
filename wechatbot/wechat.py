@@ -107,6 +107,8 @@ class ChatSession:
         else:
             self.chat_history.append(Message(msg=msg.type, time=datetime.fromtimestamp(msg.CreateTime), sender=sender))
             self.prev_msg = None
+    
+
 
     def initialize_textbot(self, mode: str, temperature=0.8):
         with open("prompts.json", "r") as f:
@@ -147,23 +149,30 @@ class ChatSession:
 @itchat.msg_register([TEXT, VIDEO, PICTURE, RECORDING], isFriendChat=True, isGroupChat=False, isMpChat=False)
 def resp_handler(msg):
     #{'MsgId': '4408932538244882035', 'FromUserName': '@2ab1bc388bb8e329553e4e44e694a818aad8df0f3cb01b60fc2530d605fe2c31', 'ToUserName': 'filehelper', 'MsgType': 1, 'Content': 'djdjd', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1676613784, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 4408932538244882035, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'UserName': 'filehelper', 'MemberList': <ContactList: []>}>, 'Type': 'Text', 'Text': 'djdjd'} 
+    user = utils.compare_similarity(msg["FromUserName"], msg["ToUserName"], uid)
+    contact = utils.compare_difference(msg["FromUserName"], msg["ToUserName"], uid)
+    isUserReceiving = True if msg["ToUserName"] == user else False
+
+    if isUserReceiving:
+        #init session in cache with key as room+user
+        #fetch ChatSession object and feed it into match case
+        pass
+    else:
+        #init session in cache with key as contact+user
+        #fetch ChatSession object and feed it into match case
+        pass
+
+
     try:
         chat = chat_cache[msg.user["UserName"]]
     except KeyError:
-        user = utils.compare_similarity(msg["FromUserName"], msg["ToUserName"], uid)
-        contact = utils.compare_difference(msg["FromUserName"], msg["ToUserName"], uid)
-        isReceiving = True if msg["ToUserName"] == user else False
-        if contact != 'filehelper':
-            contact_nickname = itchat.search_friends(contact)['NickName']
-        else:
-            contact_nickname = contact
-        user_nickname = itchat.search_friends(user)['NickName']
         chat_cache[msg.user["UserName"]] = ChatSession(user=user, contact=contact)
         chat = chat_cache[msg.user["UserName"]]
 
     chat._update_chat_history(msg)
 
     if DEBUG:
+
         print(f'**** MESSAGE IN {msg.user["UserName"]} ****')
         print(f'MESSAGE: {chat.prev_msg}')
         print(chat.current_state)
