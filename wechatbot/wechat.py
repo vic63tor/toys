@@ -3,6 +3,7 @@ import os
 import pathlib
 import re
 import json
+import csv
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -14,11 +15,14 @@ import text_processing
 import image_processing
 import audio_processing
 import utils
+from errors import IrrelevantMsgError
 
 chat_cache = {}
 tmp_dir = os.path.join(pathlib.Path(__file__).parent, 'tmp/')
 chat_history_dir = os.path.join(pathlib.Path(__file__).parent, 'chat_history/')
 pic_dir = os.path.join(tmp_dir, 'qr.png')
+
+DEBUG = os.getenv('DEBUG', 0)
 
 #class wechatHandler:
 #    def __init__(self):
@@ -71,12 +75,13 @@ class Message:
 
 
 class ChatSession:
-    start_phrase = ['Robot', '机器人']
-    end_phrase = ['886', 'Goodbye']
+    start_phrase = ['robot', '机器人', 'start']
+    end_phrase = ['goodbye', '88', 'end']
+    terminate_phrase = ['fuck']
 
     def __init__(self, user: str, contact: str): 
-        self.user_info = {'ID': user} # , 'nickname': itchat.search_friends(userName=user)['NickName']
-        self.contact_info = {'ID': contact} # , 'nickname': itchat.search_friends(userName=contact)['NickName']
+        self.user_info = {'ID': user, 'nickname': itchat.search_friends(user)['NickName']} # , 'nickname': itchat.search_friends(userName=user)['NickName']
+        self.contact_info = {'ID': contact, 'nickname': 'filehelper' if contact == 'filehelper' else itchat.search_friends(contact)['NickName']} # , 'nickname': itchat.search_friends(userName=contact)['NickName']
         self.current_state = "init"
         self.chat_history = []
         self.prev_msg: str
@@ -113,13 +118,22 @@ class ChatSession:
     def initialize_imagebot(self):
         self.imagebot = image_processing.to_BW()
 
+    def initialize_python(self):
+        pass #initialize repl
     
     def format_modes_to_str(self):
         return '\n'.join([f'{n}. {mode}' for n, mode in enumerate(self.modes)])
-
+    def get_all_phrases(self):
+        return [*self.end_phrase, *self.start_phrase, *self.terminate_phrase]
     def save_chat_history(self):
-        with open(chat_history_dir+f'{self.contact_info["nickname"]}'):
-            pass
+        filepath = os.path.join(chat_history_dir+f'{self.contact_info["ID"]}.csv')
+        with open(filepath, 'a+', newline='') as f:
+            writer = csv.writer(f)
+            if f.tell() == 0:
+                writer.writerow(['time', 'sender', 'msg'])
+            for message in self.chat_history:
+                writer.writerow([str(message.time), message.sender, message.msg])
+
 
 
 
@@ -133,42 +147,121 @@ class ChatSession:
 @itchat.msg_register([TEXT, VIDEO, PICTURE, RECORDING], isFriendChat=True, isGroupChat=False, isMpChat=False)
 def resp_handler(msg):
     #{'MsgId': '4408932538244882035', 'FromUserName': '@2ab1bc388bb8e329553e4e44e694a818aad8df0f3cb01b60fc2530d605fe2c31', 'ToUserName': 'filehelper', 'MsgType': 1, 'Content': 'djdjd', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1676613784, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 4408932538244882035, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'UserName': 'filehelper', 'MemberList': <ContactList: []>}>, 'Type': 'Text', 'Text': 'djdjd'} 
-
     try:
         chat = chat_cache[msg.user["UserName"]]
     except KeyError:
         user = utils.compare_similarity(msg["FromUserName"], msg["ToUserName"], uid)
         contact = utils.compare_difference(msg["FromUserName"], msg["ToUserName"], uid)
+        isReceiving = True if msg["ToUserName"] == user else False
+        if contact != 'filehelper':
+            contact_nickname = itchat.search_friends(contact)['NickName']
+        else:
+            contact_nickname = contact
+        user_nickname = itchat.search_friends(user)['NickName']
         chat_cache[msg.user["UserName"]] = ChatSession(user=user, contact=contact)
         chat = chat_cache[msg.user["UserName"]]
 
     chat._update_chat_history(msg)
 
-    print('-'*8)
-    print(msg, '\n')
-    print(chat.current_state)
-    print(chat.prev_msg)
-    for mes in chat.chat_history:
-        print(str(mes))
+    if DEBUG:
+        print(f'**** MESSAGE IN {msg.user["UserName"]} ****')
+        print(f'MESSAGE: {chat.prev_msg}')
+        print(chat.current_state)
+        print(chat.prev_msg)
+        for mes in chat.chat_history:
+            print(str(mes))
+        print(msg)
+        print('\n'*2)
 
     # should start with a match case to be able to use this as a python interpreter.
-    match re.split(r"\s+", chat.prev_msg):
-        case prev_msg if ' '.join(prev_msg) in chat.start_msg:
-            if chat.current_state == 'init':
-                itchat.send(f'start phrase: {chat.start_phrase} \nend phrase: {chat.end_phrase}', toUserName=chat.contact_info['ID'])
+
+    match chat.current_session:
+        case 'init':
+            if chat.prev_msg.lower() in chat.start_phrase:
+                itchat.send(f'start phrase: {chat.start_phrase} \nend phrase: {chat.terminate_phrase}', toUserName=chat.contact_info['ID'])
                 itchat.send(f'{chat.format_modes_to_str()}', toUserName=chat.contact_info['ID'])
                 chat.current_state = 'await_mode'
+        case 'await_mode':
+            choice = int(chat.prev_msg)
+            chat.initialize_textbot(chat.modes[choice])
+            itchat.send(f'initialized {chat.modes[choice]}', toUserName=chat.contact_info['ID'])
+            chat.current_state = 'textbot'
+        case 'textbot':
+            chat.prev_msg = chat.prev_msg[:1].lower() + chat.prev_msg[1:] #lowercase the first letter
+            match re.split(r"\s+", chat.prev_msg):
+                case prev_msg if utils.is_python_statement(' '.join(prev_msg)):
+                    script = ' '.join(prev_msg)
+                    itchat.send(f'{eval(script)}', toUserName=chat.contact_info['ID'])
+                case prev_msg if prev_msg[0] in chat.terminate_phrase:
+                    chat = hard_reset_ChatSession(chat)
+                case['change', n] if n.isdigit():
+                    choice = int(chat.prev_msg)
+                    del chat.textbot
+                    chat.initialize_textbot(chat.modes[choice])
+                    itchat.send(f'initialized {chat.modes[choice]}', toUserName=chat.contact_info['ID'])
+                case['help']:
+                    itchat.send(f'start phrase: {chat.start_phrase} \nend phrase: {chat.terminate_phrase}', toUserName=chat.contact_info['ID'])
+                    itchat.send(f'{chat.format_modes_to_str()}', toUserName=chat.contact_info['ID'])
 
-        case ['python', *args]:
-            script = ' '.join(args)
-            if utils.is_python_statement(script):
-                itchat.send(f'{eval(script)}', toUserName=chat.contact_info['ID'])
+                    
+
+                
+
+        
+
+        
+        case _:
+            print('what the fuck')
+
+    match re.split(r"\s+", chat.prev_msg):
+        case ['python']:
+            pass #init python repl and change chat.current_session = 'py_repl'
+
+        case prev_msg if utils.is_python_statement(' '.join(prev_msg)):
+            script = ' '.join(prev_msg)
+            itchat.send(f'{eval(script)}', toUserName=chat.contact_info['ID'])
+
+        case prev_msg if len(prev_msg) == 1 and prev_msg[0].lower() in chat.start_phrase and chat.current_state == 'init':
+            itchat.send(f'start phrase: {chat.start_phrase} \nend phrase: {chat.terminate_phrase}', toUserName=chat.contact_info['ID'])
+            itchat.send(f'{chat.format_modes_to_str()}', toUserName=chat.contact_info['ID'])
+            chat.current_state = 'await_mode'
+        
+        case prev_msg if chat.current_state == 'await_mode': #currently only textbot
+            choice = int(chat.prev_msg)
+            chat.initialize_textbot(chat.modes[choice])
+            itchat.send(f'initialized {chat.modes[choice]}', toUserName=chat.contact_info['ID'])
+            chat.current_state = 'textbot'
+        
+        case prev_msg if prev_msg[0].lower() not in chat.get_all_phrases() and chat.current_state == 'textbot':
+            send_message(chat=chat, message=f'🤖: {chat.textbot.respond(chat.prev_msg)}', toUserName=chat.contact_info['ID'])
+        
+        case ['Change', 'to', mode] if chat.current_state == 'textbot':
+            chat = soft_reset_ChatSession(chat, mode)
+
+
+        case prev_msg if ' '.join(prev_msg) in chat.end_phrase:
+            match chat.current_state:
+                case 'textbot':
+                    chat = soft_reset_ChatSession(chat, mode)
+
+        case prev_msg if ' '.join(prev_msg) in chat.terminate_phrase:
+            chat = hard_reset_ChatSession(chat)
+
+        case _:
+            match chat.current_state:
+                case 'init':
+                    print(chat.prev_msg)
+                    #raise IrrelevantMsgError(message=chat.prev_msg)
+                case 'await_mode':
+                    itchat.send('not a proper mode', toUserName=chat.contact_info['ID'])
+                case _:
+                    itchat.send(f'fuck you {uid}', toUserName=chat.contact_info['ID'])
+
+
+                
 
 
 
-
-
-        case prev_msg if ' '.join(prev_msg) in chat.end_msg:
 
     '''
     if chat.current_state == 'init':
@@ -199,7 +292,22 @@ def resp_handler(msg):
                 
                 
 
+def send_message(chat:ChatSession, message: str, toUserName):
+    itchat.send(message, toUserName=toUserName)
+    chat.chat_history.append(Message(msg=message,time=datetime.now(), sender=uid))
 
+def hard_reset_ChatSession(ChatSession):
+    if ChatSession.textbot is not None:
+        del ChatSession.textbot
+        ChatSession.textbot = None
+    ChatSession.save_chat_history()
+    ChatSession.chat_history = []
+    ChatSession.current_state = 'init'
+    return ChatSession
+
+def soft_reset_ChatSession(ChatSession, mode): #need to implement for fast switching
+    raise NotImplementedError
+    
 
 
 

@@ -1,10 +1,12 @@
 from errors import MismatchError
 import ast
 
-def is_python_statement(s): #SHOULD IMPLEMENT AST.PARSE INSTEAD! Also should implement a python repl
+def is_python_statement(s): #SHOULD IMPLEMENT AST.PARSE INSTEAD!
   try:
     eval(s)
   except:
+    return False
+  if s.isdigit():
     return False
   return True
 
