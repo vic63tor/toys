@@ -123,14 +123,19 @@ e.g. textbot 1
     def get_all_phrases(self):
         return [*self.end_phrase, *self.start_phrase, *self.terminate_phrase]
     def save_chat_history(self):
-        filepath = os.path.join(chat_history_dir+f'{self.contact_info["ID"]}.csv')
-        with open(filepath, 'a+', newline='') as f:
-            writer = csv.writer(f)
-            if f.tell() == 0:
-                writer.writerow(['time', 'sender', 'msg'])
-            for message in self.chat_history:
-                writer.writerow([str(message.time), message.sender, message.msg])
+        filepath = os.path.join(chat_history_dir+f'{self.user_info["nickname"]}_in_{self.chatroom}') # filepath = os.path.join(chat_history_dir+f'{self.user_info["ID"]}_in_{self.chatroom}')
+        if os.path.exists(filepath):
+            with open(filepath, 'a', newline='') as f:
+                writer = csv.writer(f)
+                for message in self.chat_history:
+                    writer.writerow([str(message.time), message.sender, message.msg])
 
+        else:
+            with open(filepath, 'w', newline='') as f:
+                writer = csv.writer
+                writer.writerow(['time', 'sender', 'msg'])
+                for message in self.chat_history:
+                    writer.writerow([str(message.time), message.sender, message.msg])
 
 
 
@@ -144,10 +149,12 @@ e.g. textbot 1
 @itchat.msg_register([TEXT, VIDEO, PICTURE, RECORDING], isFriendChat=True, isGroupChat=False, isMpChat=False)
 def resp_handler(msg):
     #{'MsgId': '4408932538244882035', 'FromUserName': '@2ab1bc388bb8e329553e4e44e694a818aad8df0f3cb01b60fc2530d605fe2c31', 'ToUserName': 'filehelper', 'MsgType': 1, 'Content': 'djdjd', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1676613784, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 4408932538244882035, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'UserName': 'filehelper', 'MemberList': <ContactList: []>}>, 'Type': 'Text', 'Text': 'djdjd'} 
+
+
     user = utils.compare_similarity(msg["FromUserName"], msg["ToUserName"], uid)
     contact = utils.compare_difference(msg["FromUserName"], msg["ToUserName"], uid)
-    user_info = {'ID': user, 'nickname': 'me' if not itchat.search_friends(user) else itchat.search_friends(user)['NickName']} 
-    contact_info = {'ID': contact, 'nickname': 'filehelper' if contact == 'filehelper' else itchat.search_friends(contact)['NickName']} # , 'nickname': itchat.search_friends(userName=contact)['NickName']
+    user_info = {'ID': user, 'nickname': itchat.search_friends(userName=user)['NickName']} 
+    contact_info = {'ID': contact, 'nickname': 'filehelper' if contact == 'filehelper' else itchat.search_friends(userName=contact)['NickName']} # , 'nickname': itchat.search_friends(userName=contact)['NickName']
     chatroom= msg.user["UserName"] #problem
     isUserReceiving = True if msg["ToUserName"] == user else False
 
@@ -162,12 +169,14 @@ def resp_handler(msg):
     if DEBUG:
         print(f'**** MESSAGE IN {msg.user["UserName"]} ****')
         print(f'MESSAGE: {chat.prev_msg}')
+        print(f'IN CHATROOM: {chat.chatroom}')
+        print(f'FROM USER: {chat.user_info["nickname"]}')
         print(chat.current_state)
         print(chat.prev_msg)
         for mes in chat.chat_history:
             print(str(mes))
-        print(msg)
         print('\n'*2)
+
 
 
     match chat.current_state:
@@ -207,6 +216,9 @@ def resp_handler(msg):
                 case['help']:
                     itchat.send(f'start phrase: {chat.start_phrase} \nend phrase: {chat.terminate_phrase}', toUserName=chat.chatroom)
                     itchat.send(f'{chat.format_modes_to_str()}', toUserName=chat.chatroom)
+                case _:
+                    send_message(chat=chat, message=f'🤖: {chat.textbot.respond(chat.prev_msg)}', toUserName=chat.chatroom)
+
         case 'imagebot':
             itchat.send('fuck you. Not even implemented, can you not read?', toUserName=chat.chatroom)
             chat = hard_reset_ChatSession(chat)
@@ -285,10 +297,6 @@ def soft_reset_ChatSession(ChatSession, mode): #need to implement for fast switc
 
 
 
-#@itchat.msg_register(VIDEO, isFriendChat=True, isGroupChat=False, isMpChat=False)
-#def video_handler(msg):
-#    print(msg)
-#
 #@itchat.msg_register(PICTURE, isFriendChat=True, isGroupChat=False, isMpChat=False)
 #def img_handler(msg):
 #    print(msg)
@@ -310,47 +318,11 @@ def soft_reset_ChatSession(ChatSession, mode): #need to implement for fast switc
 #    #msg.download
 #
 #
-#@itchat.msg_register(TEXT, isFriendChat=True, isGroupChat=False, isMpChat=False)
-#def text_handler(msg):
-#    assert msg.type == 'Text'
-#    "{'MsgId': '996602409339740894', 'FromUserName': '@961fa75be5c4dda00a2859825008e077140d125f4acf7f2d349be116ff2272d7', 'ToUserName': '@4b50fbae07ee174f7b948676d1cc540b9bf0655deb2a5e8601234cebd041f5dd', 'MsgType': 1, 'Content': '', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1674491144, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 996602409339740894, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'MemberList': <ContactList: []>, 'Uin': 0, 'UserName': '@961fa75be5c4dda00a2859825008e077140d125f4acf7f2d349be116ff2272d7', 'NickName': ',', 'HeadImgUrl': '/cgi-bin/mmwebwx-bin/webwxgeticon?seq=806684198&username=@961fa75be5c4dda00a2859825008e077140d125f4acf7f2d349be116ff2272d7&skey=@crypt_26bb3c43_357694c3946b0173623209d6a77f19e8', 'ContactFlag': 3, 'MemberCount': 0, 'RemarkName': '', 'HideInputBarFlag': 0, 'Sex': 0, 'Signature': '', 'VerifyFlag': 0, 'OwnerUin': 0, 'PYInitial': '', 'PYQuanPin': '', 'RemarkPYInitial': '', 'RemarkPYQuanPin': '', 'StarFriend': 0, 'AppAccountFlag': 0, 'Statues': 0, 'AttrStatus': 236325, 'Province': '', 'City': '', 'Alias': '', 'SnsFlag': 257, 'UniFriend': 0, 'DisplayName': '', 'ChatRoomId': 0, 'KeyWord': '', 'EncryChatRoomId': '', 'IsOwner': 0}>, 'Type': 'Text', 'Text': '如果对方相信很多事'}"
-#    "{'MsgId': '2943387513538162683', 'FromUserName': '@4b50fbae07ee174f7b948676d1cc540b9bf0655deb2a5e8601234cebd041f5dd', 'ToUserName': '@961fa75be5c4dda00a2859825008e077140d125f4acf7f2d349be116ff2272d7', 'MsgType': 1, 'Content': '', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1674491150, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 2943387513538162683, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'MemberList': <ContactList: []>, 'Uin': 0, 'UserName': '@961fa75be5c4dda00a2859825008e077140d125f4acf7f2d349be116ff2272d7', 'NickName': ',', 'HeadImgUrl': '/cgi-bin/mmwebwx-bin/webwxgeticon?seq=806684198&username=@961fa75be5c4dda00a2859825008e077140d125f4acf7f2d349be116ff2272d7&skey=@crypt_26bb3c43_357694c3946b0173623209d6a77f19e8', 'ContactFlag': 3, 'MemberCount': 0, 'RemarkName': '', 'HideInputBarFlag': 0, 'Sex': 0, 'Signature': '', 'VerifyFlag': 0, 'OwnerUin': 0, 'PYInitial': '', 'PYQuanPin': '', 'RemarkPYInitial': '', 'RemarkPYQuanPin': '', 'StarFriend': 0, 'AppAccountFlag': 0, 'Statues': 0, 'AttrStatus': 236325, 'Province': '', 'City': '', 'Alias': '', 'SnsFlag': 257, 'UniFriend': 0, 'DisplayName': '', 'ChatRoomId': 0, 'KeyWord': '', 'EncryChatRoomId': '', 'IsOwner': 0}>, 'Type': 'Text', 'Text': '不对'}"
-#    #print(msg)
-#
-#
-#    recv_text = msg['Text']
-#    #print(msg.user['UserName'])
-#    #print(msg['FromUserName'])
-#
-#    if msg.user['UserName'] == msg["FromUserName"]: #run
-#        try:
-#            ret_text = text_processing.gpt(recv_text, msg.user["UserName"])
-#            return '🤖: ' + ret_text
-#        except: #text_processing.OpenAI.error.RateLimitError
-#            return '🤖: ' + 'im overheating, help'
-#
-#    elif msg['ToUserName'] == 'filehelper': #test
-#        ret_text = text_processing.gpt(recv_text, msg["ToUserName"])
-#        itchat.send('🤖: ' + f'{ret_text}', toUserName='filehelper')
-#
-#
-#
-
 
 
 
 
 
 if __name__ == '__main__':
-    #save('hi')
     uid = itchat.login(picDir=pic_dir)
     itchat.run(debug=True, blockThread=True)
-    
-    #itchat.dump_login_status(fileDir=tmpDir+'dump')
-    '''
-    self.loginInfo['InviteStartCount'] = int(dic['InviteStartCount'])
-    self.loginInfo['User'] = wrap_user_dict(utils.struct_friend_info(dic['User']))
-    self.memberList.append(self.loginInfo['User'])
-    self.loginInfo['SyncKey'] = dic['SyncKey']
-    self.loginInfo['synckey'] = '|'.join(['%s_%
-    '''

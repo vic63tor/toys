@@ -75,8 +75,24 @@ class ConversationBot(LLMChain):
     
 
     def respond(self, inp):
-        return self.predict(question=f"{inp}").strip()
-    
+        '''
+        
+  File "/opt/homebrew/lib/python3.11/site-packages/openai/api_requestor.py", line 620, in _interpret_response
+    self._interpret_response_line(
+  File "/opt/homebrew/lib/python3.11/site-packages/openai/api_requestor.py", line 663, in _interpret_response_line
+    raise error.ServiceUnavailableError(
+openai.error.ServiceUnavailableError: The server is overloaded or not ready yet.
+
+        
+        
+        '''
+        try:
+            ret = self.predict(question=f"{inp}").strip()
+        except Exception as e:
+            print(e)
+            ret = 'I overheated, I am about to die, please help. Let me rest a second.'
+        return ret
+
     def _reset(self):
         with open('prompts.json') as f:
             self.templates = json.load(f)
