@@ -1,44 +1,33 @@
+from __future__ import annotations
+
 import os
-from typing import Optional, List, Mapping, Any
+from typing import Optional, List, Mapping, Any, Dict
 from dotenv import load_dotenv
 import requests
 import json
 
-#import wolframalpha
-#from wolframclient.evaluation import WolframLanguageSession
-#from wolframclient.language import wl, wlexpr
-
+from pydantic import BaseModel, Extra
 from langchain.chains.conversation.memory import ConversationBufferMemory
 from langchain.chains import SimpleSequentialChain
 from langchain import OpenAI, LLMChain, PromptTemplate
 from langchain.llms.utils import enforce_stop_tokens
-
+from langchain.chains.base import Chain
+from langchain.chains.combine_documents.base import BaseCombineDocumentsChain
+from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChain
+from langchain.chains.combine_documents.stuff import StuffDocumentsChain
+from langchain.chains.llm import LLMChain
+from langchain.docstore.document import Document
+from langchain.llms.base import BaseLLM
+from langchain.prompts.base import BasePromptTemplate
+from langchain.text_splitter import TextSplitter
 from langchain.llms import OpenAI
 
-#llm = OpenAI(model_name="text-ada-001", n=2, best_of=2)
 
 load_dotenv()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 WOLFRAMALPHA_API_KEY = os.environ.get("WOLFRAMALPHA_API_KEY")
 with open('prompts.json') as f:
     templates = json.loads(f.read())
-
-
-
-#wa_session = WolframLanguageSession()
-#def wa():
-#    # Taking input from user
-#    question = input('Question: ')
-#    
-#    client = wolframalpha.Client(WOLFRAMALPHA_API_KEY)
-#    res = client.query(question)
-#    ret = next(res.results).text
-#    
-#    return ret
-
-#def wa_client():
-#    ocean = wlexpr('GeoNearest[Entity["Ocean"], Here]')
-#    return wa_session.evaluate(ocean)
 
 class ConversationBot(LLMChain):
     def __init__(self, prompt_, temperature=0.8):
@@ -76,15 +65,11 @@ class ConversationBot(LLMChain):
 
     def respond(self, inp):
         '''
-        
   File "/opt/homebrew/lib/python3.11/site-packages/openai/api_requestor.py", line 620, in _interpret_response
     self._interpret_response_line(
   File "/opt/homebrew/lib/python3.11/site-packages/openai/api_requestor.py", line 663, in _interpret_response_line
     raise error.ServiceUnavailableError(
 openai.error.ServiceUnavailableError: The server is overloaded or not ready yet.
-
-        
-        
         '''
         try:
             ret = self.predict(question=f"{inp}").strip()
@@ -100,6 +85,62 @@ openai.error.ServiceUnavailableError: The server is overloaded or not ready yet.
 
 
 
+
+
+
+class MapReduceChain(Chain, BaseModel):
+    """Map-reduce chain."""
+
+    combine_documents_chain: BaseCombineDocumentsChain
+    """Chain to use to combine documents."""
+    text_splitter: TextSplitter
+    """Text splitter to use."""
+    input_key: str = "input_text"  #: :meta private:
+    output_key: str = "output_text"  #: :meta private:
+
+    @classmethod
+    def from_params(
+        cls, llm: BaseLLM, prompt: BasePromptTemplate, text_splitter: TextSplitter
+    ) -> MapReduceChain:
+        """Construct a map-reduce chain that uses the chain for map and reduce."""
+        llm_chain = LLMChain(llm=llm, prompt=prompt)
+        reduce_chain = StuffDocumentsChain(llm_chain=llm_chain)
+        combine_documents_chain = MapReduceDocumentsChain(
+            llm_chain=llm_chain, combine_document_chain=reduce_chain
+        )
+        return cls(
+            combine_documents_chain=combine_documents_chain, text_splitter=text_splitter
+        )
+
+
+    class Config:
+        """Configuration for this pydantic object."""
+
+        extra = Extra.forbid
+        arbitrary_types_allowed = True
+
+    @property
+    def input_keys(self) -> List[str]:
+        """Expect input key.
+
+        :meta private:
+        """
+        return [self.input_key]
+
+    @property
+    def output_keys(self) -> List[str]:
+        """Return output key.
+
+        :meta private:
+        """
+        return [self.output_key]
+
+    def _call(self, inputs: Dict[str, str]) -> Dict[str, str]:
+        # Split the larger text into smaller chunks.
+        texts = self.text_splitter.split_text(inputs[self.input_key])
+        docs = [Document(page_content=text) for text in texts]
+        outputs, _ = self.combine_documents_chain.combine_docs(docs)
+        return {self.output_key: outputs}
 
 
 

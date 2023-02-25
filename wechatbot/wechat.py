@@ -107,23 +107,24 @@ class ChatSession:
         self.imagebot_modes = None
         imagebot_modes = 'NOT AVAILABLE'
         pythonbot_modes = 'not available'
-        ret = f'''[MODE:*bot] [OPTION:number] 
-e.g. textbot 1
-
-** textbot **
+        ret = f'''** textbot **
 {textbot_modes}
 
 ** imagebot **
 {imagebot_modes}
 
 ** pythonbot **
-{pythonbot_modes}'''
+{pythonbot_modes}
+
+[MODE] [OPTION] 
+e.g. textbot 1
+'''
         return ret
 
     def get_all_phrases(self):
         return [*self.end_phrase, *self.start_phrase, *self.terminate_phrase]
     def save_chat_history(self):
-        filepath = os.path.join(chat_history_dir+f'{self.user_info["nickname"]}_in_{self.chatroom}') # filepath = os.path.join(chat_history_dir+f'{self.user_info["ID"]}_in_{self.chatroom}')
+        filepath = os.path.join(chat_history_dir+f'{self.user_info["nickname"]}_in_{self.chatroom}.csv') # filepath = os.path.join(chat_history_dir+f'{self.user_info["ID"]}_in_{self.chatroom}')
         if os.path.exists(filepath):
             with open(filepath, 'a', newline='') as f:
                 writer = csv.writer(f)
@@ -228,22 +229,6 @@ def resp_handler(msg):
         case _:
             itchat.send('something is fucked...', toUserName=chat.chatroom)
             print('what the fuck')
-'''
-            chat.initialize_textbot(chat.modes[choice])
-            chat.current_state = 'textbot'
-        except:
-            itchat.send('Not a number. Only give number. 🤖 want number', toUserName=chat.contact_info['ID'])
-    elif chat.current_state == 'textbot':
-        match chat.prev_msg.split():
-            case prev_msg if ' '.join(prev_msg) in chat.end_phrase:
-                #end session?
-                chat.current_state == 'init'
-            case prev_msg if utils.is_python_statement(prev_msg):
-                eval(prev_msg)
-            case _:
-                itchat.send(f'🤖: {chat.textbot.respond(chat.prev_msg)}', toUserName=chat.contact_info['ID'])
-
-    '''
                 
 
 def cacheing_and_fetching(chatroom, user_info):
