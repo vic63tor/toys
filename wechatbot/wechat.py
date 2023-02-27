@@ -14,6 +14,7 @@ from itchat.content import TEXT, RECORDING, VIDEO, PICTURE
 import text_processing 
 import image_processing
 import audio_processing
+import pythonrepl
 import utils
 from errors import IrrelevantMsgError
 
@@ -86,7 +87,12 @@ class ChatSession:
             self.prev_msg = recv_text
         else:
             self.prev_msg = msg.type
+
         
+    def _initiate_modes(self):
+        self.textbot_modes = list(text_processing.templates.keys())
+        self.imagebot_modes = None
+        self.pythonbot = None
 
     def initialize_textbot(self, mode: str, temperature=0.8):
         with open("prompts.json", "r") as f:
@@ -99,12 +105,12 @@ class ChatSession:
         self.imagebot = image_processing.to_BW()
 
     def initialize_python(self):
-        pass #initialize repl
+        self.pythonbot = pythonrepl.PythonREPL()
+
     
-    def get_all_modes(self):
-        self.textbot_modes = list(text_processing.templates.keys())
+    def get_modes_for_print(self):
+        self._initiate_modes()
         textbot_modes = '\n'.join([f'{n}. {mode}' for n, mode in enumerate(self.textbot_modes)])
-        self.imagebot_modes = None
         imagebot_modes = 'NOT AVAILABLE'
         pythonbot_modes = 'not available'
         ret = f'''** textbot **
@@ -200,6 +206,7 @@ def resp_handler(msg):
                 case _:
                     itchat.send('not acceptable [MODE] and/or [OPTION]\n MODE should be something-bot and OPTION should be a number\n Please refer to e.g.\n e.g. textbot 1', toUserName=chat.chatroom)
         case 'textbot':
+            itchat.send('change # to change textbot mode\ne.g. change 2', toUserName=chat.chatroom)
             chat.chat_history.append(Message(msg=chat.prev_msg,time=str(datetime.fromtimestamp(msg.CreateTime)), sender=chat.user_info['nickname']))
             match re.split(r"\s+", chat.prev_msg):
                 case prev_msg if utils.is_python_statement(' '.join(prev_msg)):
@@ -224,7 +231,11 @@ def resp_handler(msg):
             itchat.send('fuck you. Not even implemented, can you not read?', toUserName=chat.chatroom)
             chat = hard_reset_ChatSession(chat)
         case 'pythonbot':
-            itchat.send('fuck you. Not even implemented, can you not read?', toUserName=chat.chatroom)
+            chat.pythonrepl.push(chat.prev_msg)
+            if chat.pythonrepl.ret_msg:
+                itchat.send(chat.pythonrepl.ret_msg, toUserName=chat.chatroom)
+            elif chat.pythonrepl.ret_err:
+                itchat.send(chat.pythonrepl.ret_err, toUserName=chat.chatroom)
             chat = hard_reset_ChatSession(chat)
         case _:
             itchat.send('something is fucked...', toUserName=chat.chatroom)
