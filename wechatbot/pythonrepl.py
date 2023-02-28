@@ -1,21 +1,36 @@
 import warnings
+import subprocess
+import shlex
+import pathlib
+import os
 from code import InteractiveConsole
 from codeop import CommandCompiler 
 from utils import is_python_statement
-from ptyprocess import PtyProcessUnicode
 
-class PythonREPL_PTY:
-  def __init__(self) -> None:
-    self.p = PtyProcessUnicode.spawn(['python'])
-    self.init_msg = self.p.readline() + self.p.readline() + self.p.read(3)
-  
-  def _read_pty(self):
-    return self.p.read(2000)
+class Python_REPL:
+  def __init__(self):
+    self.cwd = str(pathlib.Path.home())
 
-  def run_cmd(self, cmd):
-    self.p.write(cmd+'\n')
-    ret = self.p.readline() + self.p.readline()
+  def run_cmd(self, cmd:str):
+    '''
+    cmd = shlex.split(cmd)
+    stream = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    ret = ''.join([b.decode('utf-8') for b in stream.communicate() if b])
+    print(ret)
+'''
+    cmd = shlex.split(cmd)
+    print(cmd)
+    match cmd:
+      case cmd if cmd[0] == 'python':
+        cmd[0] = '/usr/bin/python3' 
+      case ['cd', *args]:
+        pass
+    subprocess.call(cmd, shell=True, cwd=self.cwd)
+    ret = subprocess.check_output(cmd, shell=True, cwd=self.cwd)
     return ret
+  def cd(self):
+    os.chdir('..')
+
 
 
 class PythonREPL2(InteractiveConsole):
@@ -147,6 +162,10 @@ def _maybe_compile(compiler, source, filename, symbol):
     return compiler(source, filename, symbol)
 
 if __name__ == '__main__':
+  repl = Python_REPL()
+  while True:
+    inp = input()
+    repl.run_cmd(inp)
   '''
   repl = PythonREPL()
   while True:
