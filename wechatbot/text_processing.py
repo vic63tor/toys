@@ -3,8 +3,10 @@ from __future__ import annotations
 import os
 from typing import Optional, List, Mapping, Any, Dict
 from dotenv import load_dotenv
+from abc import ABC, abstractmethod
 import requests
 import json
+import asyncio
 
 from pydantic import BaseModel, Extra
 from langchain.chains.conversation.memory import ConversationBufferMemory
@@ -17,10 +19,11 @@ from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChai
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from langchain.chains.llm import LLMChain
 from langchain.docstore.document import Document
-from langchain.llms.base import BaseLLM
+from langchain.llms.base import BaseLLMs
 from langchain.prompts.base import BasePromptTemplate
 from langchain.text_splitter import TextSplitter
 from langchain.llms import OpenAI
+from EdgeGPT import Chatbot
 
 
 load_dotenv()
@@ -29,7 +32,14 @@ WOLFRAMALPHA_API_KEY = os.environ.get("WOLFRAMALPHA_API_KEY")
 with open('prompts.json') as f:
     templates = json.loads(f.read())
 
-class ConversationBot(LLMChain):
+
+class ConversationBot(ABC):
+    @abstractmethod
+    def send_message(self, message) -> str:
+        pass
+
+
+class LLMBot(LLMChain, ConversationBot):
     def __init__(self, prompt_, temperature=0.8):
         super().__init__(
             llm=OpenAI(temperature=temperature),
@@ -39,9 +49,6 @@ class ConversationBot(LLMChain):
         )
         #self.name = None
         #template = self.tempaltes[self.default] if self.name == None else self.tempaltes[self.name]
-
-
-    
 
     @staticmethod
     def _read_prompts():
@@ -61,9 +68,9 @@ class ConversationBot(LLMChain):
     def save_to_json(templates):
         with open('prompts.json', 'w') as f:
             json.dump(templates, f)
-    
 
-    def respond(self, inp):
+
+    async def send_message(self, message):
         '''
   File "/opt/homebrew/lib/python3.11/site-packages/openai/api_requestor.py", line 620, in _interpret_response
     self._interpret_response_line(
@@ -72,7 +79,7 @@ class ConversationBot(LLMChain):
 openai.error.ServiceUnavailableError: The server is overloaded or not ready yet.
         '''
         try:
-            ret = self.predict(question=f"{inp}").strip()
+            ret = await self.apredict(question=f"{message}").strip()
         except Exception as e:
             print(e)
             ret = 'I overheated, I am about to die, please help. Let me rest a second.'
@@ -100,7 +107,7 @@ class MapReduceChain(Chain, BaseModel):
 
     @classmethod
     def from_params(
-        cls, llm: BaseLLM, prompt: BasePromptTemplate, text_splitter: TextSplitter
+        cls, llm: BaseLLMs, prompt: BasePromptTemplate, text_splitter: TextSplitter
     ) -> MapReduceChain:
         """Construct a map-reduce chain that uses the chain for map and reduce."""
         llm_chain = LLMChain(llm=llm, prompt=prompt)
@@ -143,15 +150,16 @@ class MapReduceChain(Chain, BaseModel):
         return {self.output_key: outputs}
 
 
+async def main():
+    bot = Chatbot()
+    while True:
+        prompt = input("prompt:")
+        resp = await bot.ask(prompt=prompt)
+        resp_msg = resp["item"]["messages"][1]['adaptiveCards'][0]['body'][0]['text']
+        print(resp)
+        print(resp_msg)
+    await bot.close()
 
-
-
-
-
-
-
-
-    
 
 
 
@@ -175,13 +183,4 @@ class MapReduceChain(Chain, BaseModel):
 #
 
 if __name__ == '__main__':
-    with open('prompts.json') as f:
-        my_templates = json.loads(f.read())
-    my_templates = my_templates['chatgpt']
-    bot1 = ConversationBot(prompt_=my_templates)
-
-
-
-    #print('gpt response: ', gpt("tell me a story in 10 words", 'retard'))
-    #print('gpt response: ', gpt("what was the first word from your previous response", 'retard'))
-    #print('gpt response: ', gpt("what was the first word from your previous response", 'not_retard'))
+    asyncio.run(main())

@@ -4,4 +4,5 @@ __pycache__
 wechatbot/tmp/*
 wechatbot/*.pkl
 wechatbot/wechatbot/chatbot_history/*
+cookie.json
 

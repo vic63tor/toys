@@ -1,4 +1,5 @@
 import warnings
+import pty
 import subprocess
 import shlex
 import pathlib
@@ -7,9 +8,19 @@ from code import InteractiveConsole
 from codeop import CommandCompiler 
 from utils import is_python_statement
 
-class Python_REPL:
+
+
+class PsuedoTerminal:
   def __init__(self):
+    master, slave = pty.openpty()
+    print(master, slave)
     self.cwd = str(pathlib.Path.home())
+
+  
+
+class Python_REPL(PsuedoTerminal):
+  def __init__(self):
+    super().__init__()
 
   def run_cmd(self, cmd:str):
     '''
@@ -19,12 +30,14 @@ class Python_REPL:
     print(ret)
 '''
     cmd = shlex.split(cmd)
-    print(cmd)
     match cmd:
       case cmd if cmd[0] == 'python':
         cmd[0] = '/usr/bin/python3' 
       case ['cd', *args]:
         pass
+      case _:
+        pass
+    print(cmd)
     subprocess.call(cmd, shell=True, cwd=self.cwd)
     ret = subprocess.check_output(cmd, shell=True, cwd=self.cwd)
     return ret
@@ -162,11 +175,13 @@ def _maybe_compile(compiler, source, filename, symbol):
     return compiler(source, filename, symbol)
 
 if __name__ == '__main__':
+  pt1 = PsuedoTerminal()
+  pt2 = PsuedoTerminal()
+  '''
   repl = Python_REPL()
   while True:
     inp = input()
     repl.run_cmd(inp)
-  '''
   repl = PythonREPL()
   while True:
     inp = input()
