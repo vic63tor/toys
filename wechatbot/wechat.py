@@ -2,55 +2,27 @@
 import os
 import pathlib
 import re
-import json
 import csv
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from dataclasses import dataclass
+# from typing import List, Dict, Optional
 from datetime import datetime
 
 import itchat
 from itchat.content import TEXT, RECORDING, VIDEO, PICTURE
+# from dotenv import load_dotenv
 
 import text_processing 
 import image_processing
 import audio_processing
 import pythonrepl
 import utils
-from errors import IrrelevantMsgError
+# from errors import IrrelevantMsgError
 
-chat_cache = {}
 tmp_dir = os.path.join(pathlib.Path(__file__).parent, 'tmp/')
 chat_history_dir = os.path.join(pathlib.Path(__file__).parent, 'chatbot_history/')
 pic_dir = os.path.join(tmp_dir, 'qr.png')
-
 DEBUG = os.getenv('DEBUG', 0)
 
-#class wechatHandler:
-#    def __init__(self):
-#        chat_cache = {}
-#        self.tmpDir = os.path.join(pathlib.Path(__file__).parent, 'tmp/')
-#        picDir = os.path.join(tmpDir, 'qr.png')
-#        itchat.auto_login(picDir=picDir)
-#        itchat.run(debug=True, blockThread=True)
-#
-
-#@itchat.msg_register(RECORDING, isFriendChat=True, isGroupChat=False, isMpChat=False)
-#def voice_handler(msg):
-#    path_to_recording = save(msg)
-#    recv_text = audio_processing.transcribe(path_to_recording)
-#
-#    if msg.user['UserName'] == msg["FromUserName"]: #run
-#        try:
-#            ret_text = text_processing.gpt(recv_text, msg.user["UserName"])
-#            return '🤖: ' + ret_text
-#        except: #text_processing.OpenAI.error.RateLimitError
-#            return '🤖: ' + 'im overheating, help'
-#
-#    elif msg['ToUserName'] == 'filehelper': #test
-#        ret_text = text_processing.gpt(recv_text, msg["ToUserName"])
-#        itchat.send('🤖: ' + f'{ret_text}', toUserName='filehelper')
-
-#new_message = {'sender': msg["FromUserName"], 'receiver': msg["ToUserName"], 'msgType': msg.type, 'chatname': msg.user['UserName'], 'timestamp': msg['CreateTime']}
 
 @dataclass
 class Message:
@@ -59,21 +31,23 @@ class Message:
     sender: str
 
 
+chat_cache = {}
+
+
 class ChatSession:
     start_phrase = ['robot', '机器人', 'start']
-    end_phrase = ['goodbye', '88', 'end']
-    terminate_phrase = ['fuck']
+    terminate_phrase = ['88', 'exit']
 
-    def __init__(self, user_info: dict, chatroom): 
-        self.user_info = user_info 
-        self.chatroom = chatroom
-        self.current_state = "init"
-        self.chat_history = []
-        self.prev_msg: str
-        self.textbot = None
+    def __init__(self, user_info: dict, chatroom):
+        self.user_info: dict = user_info
+        self.chatroom: str = chatroom
+        self.current_state: str = "init"
+        self.chat_history: list = []
+        self.prev_msg: str = ''
+        self.textbot = None  # GETTER AND SETTER FOR PROPERTY
         self.imagebot = None
-        self.pythonbot = None 
-    
+        self.pythonbot = None
+
     def _prepare_prev_msg(self, msg):
         recv_text = None
         if msg.type == 'Text':
@@ -88,18 +62,18 @@ class ChatSession:
         else:
             self.prev_msg = msg.type
 
-        
+    @property
+    def modes(self):
+        pass
+    #@modes.setter
+
     def _initiate_modes(self):
         self.textbot_modes = list(text_processing.templates.keys())
         self.imagebot_modes = None
         self.pythonbot = None
 
     def initialize_textbot(self, mode: str, temperature=0.8):
-        with open("prompts.json", "r") as f:
-            f = f.read()
-            templates = json.loads(f)
-        prompt = templates[mode]
-        self.textbot = text_processing.ConversationBot(prompt_=prompt, temperature=temperature)
+        self.textbot = text_processing.LangchainBot(prompt_=mode, temperature=temperature)
 
     def initialize_imagebot(self):
         self.imagebot = image_processing.to_BW()
@@ -128,9 +102,13 @@ e.g. textbot 1
         return ret
 
     def get_all_phrases(self):
-        return [*self.end_phrase, *self.start_phrase, *self.terminate_phrase]
+        return [*self.start_phrase, *self.terminate_phrase]
+
     def save_chat_history(self):
-        filepath = os.path.join(chat_history_dir+f'{self.user_info["nickname"]}_in_{self.chatroom}.csv') # filepath = os.path.join(chat_history_dir+f'{self.user_info["ID"]}_in_{self.chatroom}')
+        filepath = os.path.join(
+            chat_history_dir,
+            f'{self.user_info["nickname"]}_in_{self.chatroom}.csv'
+            )  # filepath = os.path.join(chat_history_dir+f'{self.user_info["ID"]}_in_{self.chatroom}')
         if os.path.exists(filepath):
             with open(filepath, 'a', newline='') as f:
                 writer = csv.writer(f)
@@ -145,18 +123,9 @@ e.g. textbot 1
                     writer.writerow([str(message.time), message.sender, message.msg])
 
 
-
-
-
-
-
-
-    #def append_history()
-
 @itchat.msg_register([TEXT, VIDEO, PICTURE, RECORDING], isFriendChat=True, isGroupChat=False, isMpChat=False)
 def resp_handler(msg):
     #{'MsgId': '4408932538244882035', 'FromUserName': '@2ab1bc388bb8e329553e4e44e694a818aad8df0f3cb01b60fc2530d605fe2c31', 'ToUserName': 'filehelper', 'MsgType': 1, 'Content': 'djdjd', 'Status': 3, 'ImgStatus': 1, 'CreateTime': 1676613784, 'VoiceLength': 0, 'PlayLength': 0, 'FileName': '', 'FileSize': '', 'MediaId': '', 'Url': '', 'AppMsgType': 0, 'StatusNotifyCode': 0, 'StatusNotifyUserName': '', 'RecommendInfo': {'UserName': '', 'NickName': '', 'QQNum': 0, 'Province': '', 'City': '', 'Content': '', 'Signature': '', 'Alias': '', 'Scene': 0, 'VerifyFlag': 0, 'AttrStatus': 0, 'Sex': 0, 'Ticket': '', 'OpCode': 0}, 'ForwardFlag': 0, 'AppInfo': {'AppID': '', 'Type': 0}, 'HasProductId': 0, 'Ticket': '', 'ImgHeight': 0, 'ImgWidth': 0, 'SubMsgType': 0, 'NewMsgId': 4408932538244882035, 'OriContent': '', 'EncryFileName': '', 'User': <User: {'UserName': 'filehelper', 'MemberList': <ContactList: []>}>, 'Type': 'Text', 'Text': 'djdjd'} 
-
 
     user = utils.compare_similarity(msg["FromUserName"], msg["ToUserName"], uid)
     contact = utils.compare_difference(msg["FromUserName"], msg["ToUserName"], uid)
@@ -184,8 +153,6 @@ def resp_handler(msg):
             print(str(mes))
         print('\n'*2)
 
-
-
     match chat.current_state:
         case 'init':
             if chat.prev_msg in chat.start_phrase:
@@ -200,9 +167,9 @@ def resp_handler(msg):
                     itchat.send(f'initialized {chat.textbot_modes[choice]}', toUserName=chat.chatroom)
                     chat.current_state = 'textbot'
                 case ['imagebot', n] if n.isdigit():
-                    itchat.send('fuck you. Not even implemented, can you not read?', toUserName=chat.chatroom)
+                    itchat.send('not implemented', toUserName=chat.chatroom)
                 case ['pythonbot']: 
-                    itchat.send('fuck you. Not even implemented, can you not read?', toUserName=chat.chatroom)
+                    itchat.send('not implemented', toUserName=chat.chatroom)
                 case _:
                     itchat.send('not acceptable [MODE] and/or [OPTION]\n MODE should be something-bot and OPTION should be a number\n Please refer to e.g.\n e.g. textbot 1', toUserName=chat.chatroom)
         case 'textbot':
@@ -228,7 +195,7 @@ def resp_handler(msg):
                     send_message(chat=chat, message=f'🤖: {chat.textbot.respond(chat.prev_msg)}', toUserName=chat.chatroom)
 
         case 'imagebot':
-            itchat.send('fuck you. Not even implemented, can you not read?', toUserName=chat.chatroom)
+            itchat.send('not implemented', toUserName=chat.chatroom)
             chat = hard_reset_ChatSession(chat)
         case 'pythonbot':
             chat.pythonrepl.push(chat.prev_msg)

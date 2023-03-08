@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import os
-from typing import Optional, List, Mapping, Any, Dict
+from typing import Optional, List, Mapping, Any, Dict, Type
 from dotenv import load_dotenv
 from abc import ABC, abstractmethod
 import requests
 import json
 import asyncio
 
+from youdotcom.init import Init
+from youdotcom.youchat import Chat
+from EdgeGPT import Chatbot
 from pydantic import BaseModel, Extra
 from langchain.chains.conversation.memory import ConversationBufferMemory
 from langchain.chains import SimpleSequentialChain
@@ -19,36 +22,42 @@ from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChai
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from langchain.chains.llm import LLMChain
 from langchain.docstore.document import Document
-from langchain.llms.base import BaseLLMs
+from langchain.llms.base import BaseLLM
 from langchain.prompts.base import BasePromptTemplate
 from langchain.text_splitter import TextSplitter
 from langchain.llms import OpenAI
-from EdgeGPT import Chatbot
+from openai.error import OpenAIError
+
 
 
 load_dotenv()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+YOU_API_KEY = os.environ.get("YOU_API_KEY")
 WOLFRAMALPHA_API_KEY = os.environ.get("WOLFRAMALPHA_API_KEY")
 with open('prompts.json') as f:
     templates = json.loads(f.read())
 
 
-class ConversationBot(ABC):
+class BotTemplate(ABC):
     @abstractmethod
-    def send_message(self, message) -> str:
+    async def process_message(self, message) -> str:
+        pass
+
+    @abstractmethod
+    @classmethod
+    def reinit(cls, changes: list) -> Type:
         pass
 
 
-class LLMBot(LLMChain, ConversationBot):
-    def __init__(self, prompt_, temperature=0.8):
+class LangchainChatBot(LLMChain, BotTemplate):
+    def __init__(self, mode, temperature=0.8):
+        self.templates = self._read_prompts()
         super().__init__(
             llm=OpenAI(temperature=temperature),
-            prompt=PromptTemplate(input_variables=["chat_history","question"], template=prompt_),
+            prompt=PromptTemplate(input_variables=["chat_history","question"], template=self.templates[mode]),
             verbose=True,
             memory=ConversationBufferMemory(memory_key="chat_history"),
         )
-        #self.name = None
-        #template = self.tempaltes[self.default] if self.name == None else self.tempaltes[self.name]
 
     @staticmethod
     def _read_prompts():
@@ -56,44 +65,76 @@ class LLMBot(LLMChain, ConversationBot):
             f = f.read()
             ret = json.loads(f)
         return ret
+
     @classmethod
-    def init_new_template(cls, name, prompt):
-        cls.templates[name] = prompt
-    
-    @classmethod
-    def del_template(self, name):
-        del self.templates[name]
+    def init_with_settings(cls, settings):
+        mode = settings['mode']
+        temperature = settings['temperature']
+        return cls(mode, temperature)
     
     @staticmethod
     def save_to_json(templates):
         with open('prompts.json', 'w') as f:
             json.dump(templates, f)
 
-
-    async def send_message(self, message):
-        '''
-  File "/opt/homebrew/lib/python3.11/site-packages/openai/api_requestor.py", line 620, in _interpret_response
-    self._interpret_response_line(
-  File "/opt/homebrew/lib/python3.11/site-packages/openai/api_requestor.py", line 663, in _interpret_response_line
-    raise error.ServiceUnavailableError(
-openai.error.ServiceUnavailableError: The server is overloaded or not ready yet.
-        '''
+    async def process_message(self, message) -> str:
         try:
             ret = await self.apredict(question=f"{message}").strip()
-        except Exception as e:
+        except OpenAIError as e:
             print(e)
             ret = 'I overheated, I am about to die, please help. Let me rest a second.'
         return ret
 
-    def _reset(self):
-        with open('prompts.json') as f:
-            self.templates = json.load(f)
-        self.cache = {}
 
+class BingBot(Chatbot, BotTemplate):
+    def __init__(self):
+        super().__init__()
 
+    async def process_message(self, message) -> str:
+        try:
+            resp = await self.ask(prompt=message)
+            ret = resp["item"]["messages"][1]['adaptiveCards'][0]['body'][0]['text']
+        except Exception as e:
+            print(e)
+            ret = 'I overheated, I am about to die, please help. Let me rest a second.'
 
+class YouBot(Chat, BotTemplate):
+    def __init__(self):
+        self.driver = Init().driver
+    
+    def process_message(self, message) -> str:
+        chat = Chat.send_message(driver=self.driver, message=message)
+        return chat
 
+        #return await super().process_message(message)
 
+class TextBots:
+    def __init__(self, bots, modes):
+        self.bots: list = []
+        self.modes: list = []
+
+    @classmethod
+    def initiate_modes(cls, modes):
+        bots = []
+        for mode in modes:
+            match mode.casefold().split():
+                case 'binggpt':
+                    appendable = BingBot()
+                case []:
+                    pass
+            bots.append(appendable)
+        return cls(bots, modes)
+
+    def respond(self, message):
+        ret = []
+        for bot in self.bots:
+            ret.append(bot.process_message(message))
+        return ret
+
+    def reset(self):
+        for bot in self.bots:
+            del bot
+        self._initiate_modes()
 
 class MapReduceChain(Chain, BaseModel):
     """Map-reduce chain."""
@@ -107,7 +148,7 @@ class MapReduceChain(Chain, BaseModel):
 
     @classmethod
     def from_params(
-        cls, llm: BaseLLMs, prompt: BasePromptTemplate, text_splitter: TextSplitter
+        cls, llm: BaseLLM, prompt: BasePromptTemplate, text_splitter: TextSplitter
     ) -> MapReduceChain:
         """Construct a map-reduce chain that uses the chain for map and reduce."""
         llm_chain = LLMChain(llm=llm, prompt=prompt)
@@ -153,7 +194,7 @@ class MapReduceChain(Chain, BaseModel):
 async def main():
     bot = Chatbot()
     while True:
-        prompt = input("prompt:")
+        prompt = input("prompt: ")
         resp = await bot.ask(prompt=prompt)
         resp_msg = resp["item"]["messages"][1]['adaptiveCards'][0]['body'][0]['text']
         print(resp)
