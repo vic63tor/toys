@@ -8,3 +8,4 @@ code = r.text.split('"')[-2]
 qr_r = requests.get(f'https://login.weixin.qq.com/qrcode/{code}')
 img = Image.open(BytesIO(qr_r.content))
 img.show()
+

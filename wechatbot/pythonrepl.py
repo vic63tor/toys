@@ -4,6 +4,7 @@ import subprocess
 import shlex
 import pathlib
 import os
+import sys
 from code import InteractiveConsole
 from codeop import CommandCompiler 
 from utils import is_python_statement
@@ -12,9 +13,16 @@ from utils import is_python_statement
 
 class PsuedoTerminal:
   def __init__(self):
-    master, slave = pty.openpty()
-    print(master, slave)
-    self.cwd = str(pathlib.Path.home())
+    #master, slave = pty.openpty()
+    #print(type(master), type(slave))
+    #self.cwd = str(pathlib.Path.home())
+    process_id, id =  pty.fork()
+    print(process_id, id)
+    print(type(process_id), type(id))
+    print("The Process ID for the Current process is: " + str(os.getpid()))
+    print("The Process ID for the Child process is: " + str(process_id))
+    print('Name of the Slave: ' + str(os.ttyname(process_id)))
+
 
   
 
@@ -176,26 +184,3 @@ def _maybe_compile(compiler, source, filename, symbol):
 
 if __name__ == '__main__':
   pt1 = PsuedoTerminal()
-  pt2 = PsuedoTerminal()
-  '''
-  repl = Python_REPL()
-  while True:
-    inp = input()
-    repl.run_cmd(inp)
-  repl = PythonREPL()
-  while True:
-    inp = input()
-    repl.push(inp)
-    #print(f'self.locals = {repl.locals}')
-    print('*'*8)
-    print(f'ret_msg = {repl.ret_msg}')
-    print('*'*8)
-
-  repl = PythonREPL()
-  print(repl.init_msg)
-  while True:
-    inp = input()
-    ret = repl.run_cmd(inp)
-    print(ret)
-
-  '''

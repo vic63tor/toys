@@ -44,7 +44,7 @@ class ChatSession:
         self.current_state: str = "init"
         self.chat_history: list = []
         self.prev_msg: str = ''
-        self.textbot = None  # GETTER AND SETTER FOR PROPERTY
+        self.textbot = None  # GETTER AND SETTER FOR PROPERTY AND CAN ASSERT hasattr() 
         self.imagebot = None
         self.pythonbot = None
 

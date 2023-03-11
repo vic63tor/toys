@@ -1,0 +1,2 @@
+import unittest
+import wechatbot.text_processing
