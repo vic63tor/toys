@@ -30,21 +30,23 @@ class BotTemplate(ABC):
   name = None
 
   @abstractmethod
-  async def process_message(self, message) -> str:
+  async def process_message(self, name, message) -> str:
     pass
 
 
+
 class ChatGPTBot(OpenAIChat, BotTemplate):
+  name = 'ChatGPT'
   def __init__(self):
-    self.name = 'ChatGPT'
     super().__init__(model_name="gpt-3.5-turbo")
 
-  async def process_message(self, message) -> str:
+  async def process_message(self, name, message) -> str:
     try: 
       ret = await super().agenerate([message])
       ret = ret.generations[0][0].text
+      ret = f'**{name}**\n{ret}'
     except OpenAIError as e:
-      print(type(self).__name__, e)
+      print(name, e)
       ret = 'I overheated, I am about to die, please help. Let me rest a second.'
     return ret
 
@@ -53,7 +55,6 @@ class ChatGPTBot(OpenAIChat, BotTemplate):
 
 class LangchainBot(LLMChain, BotTemplate):
   def __init__(self, mode, temperature=0.8):
-    self.name = mode
     with open('../prompts.json') as f:
       templates = json.loads(f.read())
     super().__init__(
@@ -67,26 +68,28 @@ class LangchainBot(LLMChain, BotTemplate):
   def init_with_settings(cls, mode, temperature):
     return cls(mode, temperature)
 
-  async def process_message(self, message) -> str:
+  async def process_message(self, name, message) -> str:
     try:
       ret = await self.apredict(question=f"{message}")
+      ret = f'**{name}**\n{ret}'
     except OpenAIError as e:
-      print(type(self).__name__, e)
+      print(name, e)
       ret = 'I overheated, I am about to die, please help. Let me rest a second.'
     return ret
 
 
 class BingBot(Chatbot, BotTemplate):
+  name = 'BingGPT'
   def __init__(self):
-    self.name = 'BingGPT'
     super().__init__()
 
-  async def process_message(self, message) -> str:
+  async def process_message(self, name, message) -> str:
     try:
       resp = await self.ask(prompt=message)
       ret = resp["item"]["messages"][1]['adaptiveCards'][0]['body'][0]['text']
+      ret = f'**{name}**\n{ret}'
     except Exception as e:
-      print(type(self).__name__, e)
+      print(name, e)
       ret = 'I overheated, I am about to die, please help. Let me rest a second.'
     return ret
 
@@ -130,17 +133,19 @@ class TextBots:
           bot_inst = BingBot()
         case ['langchain', *rest]:
           bot_inst = LangchainBot(' '.join(rest))
-      bots[bot] = bot_inst
+      bots[modes[bot]] = bot_inst
     return cls(bots)
 
   async def respond(self, message):
     tasks = []
     for name, bot in self.active_bots.items():
-      task = asyncio.create_task(bot.process_message(message))
+      task = asyncio.create_task(bot.process_message(name, message))
       tasks.append(task)
     ret = await asyncio.gather(*tasks)
+    print('gathering done')
     for r in ret:
       print(r)
+    print('print done')
 
   def reset(self):
     for bot in self.active_bots.values():
@@ -148,10 +153,9 @@ class TextBots:
     self.initiate_bots()
 
 
-
 if __name__ == '__main__':
   #asyncio.run(main())
   modes = get_modes()
-  select = [0,3,4,5]
+  select = [0,1,3,4,5]
   t = TextBots.initiate_bots(modes, select)
-  asyncio.run(t.respond("怎么打羽毛球"))
+  asyncio.run(t.respond(""))

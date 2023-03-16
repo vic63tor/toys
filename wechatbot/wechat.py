@@ -11,9 +11,7 @@ import itchat
 from itchat.content import TEXT, RECORDING, VIDEO, PICTURE
 # from dotenv import load_dotenv
 
-import text_processing 
-import image_processing
-import audio_processing
+import processors
 import pythonrepl
 import utils
 # from errors import IrrelevantMsgError
