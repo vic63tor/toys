@@ -22,7 +22,7 @@ load_dotenv()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 YOU_API_KEY = os.environ.get("YOU_API_KEY")
 WOLFRAMALPHA_API_KEY = os.environ.get("WOLFRAMALPHA_API_KEY")
-with open('../prompts.json') as f:
+with open('prompts.json') as f:
   templates = json.loads(f.read())
 
 
@@ -55,7 +55,7 @@ class ChatGPTBot(OpenAIChat, BotTemplate):
 
 class LangchainBot(LLMChain, BotTemplate):
   def __init__(self, mode, temperature=0.8):
-    with open('../prompts.json') as f:
+    with open('prompts.json') as f:
       templates = json.loads(f.read())
     super().__init__(
         llm=OpenAI(temperature=temperature),
@@ -112,10 +112,9 @@ class BingBot(Chatbot, BotTemplate):
     #return await super().process_message(message)
 
 def get_modes() -> dict:
-    with open('../prompts.json') as f:
+    with open('prompts.json') as f:
       prompt_names = ['langchain '+i for i in json.loads(f.read()).keys()]
     return {n:mode for n,mode in enumerate(["ChatGPT", "BingGPT", *prompt_names])}
-
 
 class TextBots:
   modes = get_modes()
@@ -137,15 +136,8 @@ class TextBots:
     return cls(bots)
 
   async def respond(self, message):
-    tasks = []
-    for name, bot in self.active_bots.items():
-      task = asyncio.create_task(bot.process_message(name, message))
-      tasks.append(task)
-    ret = await asyncio.gather(*tasks)
-    print('gathering done')
-    for r in ret:
-      print(r)
-    print('print done')
+    tasks = [asyncio.create_task(bot.process_message(name, message)) for name, bot in self.active_bots.items()]
+    return await asyncio.gather(*tasks)
 
   def reset(self):
     for bot in self.active_bots.values():
@@ -156,6 +148,7 @@ class TextBots:
 if __name__ == '__main__':
   #asyncio.run(main())
   modes = get_modes()
+  print(modes)
   select = [0,1,3,4,5]
   t = TextBots.initiate_bots(modes, select)
-  asyncio.run(t.respond(""))
+  print(asyncio.run(t.respond("")))
