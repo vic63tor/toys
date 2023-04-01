@@ -22,12 +22,12 @@ load_dotenv()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 YOU_API_KEY = os.environ.get("YOU_API_KEY")
 WOLFRAMALPHA_API_KEY = os.environ.get("WOLFRAMALPHA_API_KEY")
-with open('prompts.json') as f:
+with open('settings/prompts.json') as f:
   templates = json.loads(f.read())
 
 
 class BotTemplate(ABC):
-  name = None
+  name: str
 
   @abstractmethod
   async def process_message(self, name, message) -> str:
@@ -36,7 +36,7 @@ class BotTemplate(ABC):
 
 
 class ChatGPTBot(OpenAIChat, BotTemplate):
-  name = 'ChatGPT'
+  name = "ChatGPTBot"
   def __init__(self):
     super().__init__(model_name="gpt-3.5-turbo")
 
@@ -54,15 +54,17 @@ class ChatGPTBot(OpenAIChat, BotTemplate):
 
 
 class LangchainBot(LLMChain, BotTemplate):
+  name = "LangchainBot"
+  with open('settings/prompts.json') as f:
+    templates = json.loads(f.read())
   def __init__(self, mode, temperature=0.8):
-    with open('prompts.json') as f:
-      templates = json.loads(f.read())
     super().__init__(
         llm=OpenAI(temperature=temperature),
         prompt=PromptTemplate(input_variables=["chat_history","question"], template=templates[mode]),
         verbose=True,
         memory=ConversationBufferMemory(memory_key="chat_history"),
     )
+    self.name += mode
 
   @classmethod
   def init_with_settings(cls, mode, temperature):
@@ -81,7 +83,7 @@ class LangchainBot(LLMChain, BotTemplate):
 class BingBot(Chatbot, BotTemplate):
   name = 'BingGPT'
   def __init__(self):
-    super().__init__()
+    super().__init__(cookiePath='settings/cookie.json')
 
   async def process_message(self, name, message) -> str:
     try:
@@ -112,11 +114,11 @@ class BingBot(Chatbot, BotTemplate):
     #return await super().process_message(message)
 
 def get_modes() -> dict:
-    with open('prompts.json') as f:
+    with open('settings/prompts.json') as f:
       prompt_names = ['langchain '+i for i in json.loads(f.read()).keys()]
     return {n:mode for n,mode in enumerate(["ChatGPT", "BingGPT", *prompt_names])}
 
-class TextBots:
+class TextBotAggregator:
   modes = get_modes()
   def __init__(self, active_bots):
     self.active_bots: dict = active_bots
@@ -146,9 +148,12 @@ class TextBots:
 
 
 if __name__ == '__main__':
+  ...
   #asyncio.run(main())
+  '''
   modes = get_modes()
   print(modes)
   select = [0,1,3,4,5]
   t = TextBots.initiate_bots(modes, select)
   print(asyncio.run(t.respond("")))
+  '''
