@@ -1,0 +1,2 @@
+#!/bin/bash
+./main -m ./models/LLaMA/7B/ggml-model-q4_0.bin -p "$1" -n 512

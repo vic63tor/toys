@@ -5,4 +5,7 @@ wechatbot/tmp/*
 wechatbot/*.pkl
 wechatbot/wechatbot/chatbot_history/*
 cookie.json
+llama.cpp
+ChatGLM-6B
+**/models/**
 
